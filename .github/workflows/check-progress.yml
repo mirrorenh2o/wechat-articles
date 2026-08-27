@@ -56,54 +56,15 @@ jobs:
           COMMIT_COUNT="${{ steps.fetch_activity.outputs.commit_count }}"
           DAYS="${{ github.event.inputs.days }}"
           
-          # Build DETAILS_LINES
-          if [ "$PR_COUNT" -eq 0 ] && [ "$COMMIT_COUNT" -eq 0 ]; then
-            DETAILS_LINES='["❌ No recent activity detected."]'
-          else
-            DETAILS_LINES=$(echo "$REPORT" | jq -R -s 'split("\n") | map(select(length > 0))')
-            if [ "$(echo "$DETAILS_LINES" | jq 'length')" -eq 0 ]; then
-              DETAILS_LINES='["✅ No detailed entries found."]'
-            fi
-          fi
+          # Build message with printf for proper newlines
+          MESSAGE=$(printf "📊 RuyiSDK Biweekly Progress Report\n\n📈 Activity in the last %s days:\n• Pull Requests: %s\n• Commits to main: %s\n\n📋 Recent activity details:\n%s" \
+            "$DAYS" "$PR_COUNT" "$COMMIT_COUNT" "$REPORT")
           
-          # Build the full content array with jq
-          # Key fix: use + to concatenate the fixed paragraphs with the details lines
-          JSON_PAYLOAD=$(jq -n \
-            --arg pr_count "$PR_COUNT" \
-            --arg commit_count "$COMMIT_COUNT" \
-            --arg days "$DAYS" \
-            --argjson details_lines "$DETAILS_LINES" \
-            '{
-              msg_type: "post",
-              content: {
-                post: {
-                  zh_cn: {
-                    title: "📊 RuyiSDK Biweekly Progress Report",
-                    content: [
-                      [
-                        {tag: "text", text: "📈 Activity in the last \($days) days:"}
-                      ],
-                      [
-                        {tag: "text", text: "• Pull Requests: \($pr_count)"}
-                      ],
-                      [
-                        {tag: "text", text: "• Commits to main: \($commit_count)"}
-                      ],
-                      [
-                        {tag: "text", text: ""}
-                      ],
-                      [
-                        {tag: "text", text: "📋 Recent activity details:"}
-                      ]
-                    ] + ($details_lines | map([{tag: "text", text: .}]))
-                  }
-                }
-              }
-            }')
+          # Use jq to construct valid JSON with the message
+          JSON_PAYLOAD=$(jq -n --arg msg "$MESSAGE" '{msg_type: "text", content: {text: $msg}}')
           
-          # Debug: validate JSON
-          echo "=== VALIDATING JSON ==="
-          echo "$JSON_PAYLOAD" | jq . > /dev/null && echo "JSON is valid" || echo "JSON is invalid"
+          # Debug: print JSON length
+          echo "JSON payload length: $(echo "$JSON_PAYLOAD" | wc -c)"
           
           curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
