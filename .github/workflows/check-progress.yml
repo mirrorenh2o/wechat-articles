@@ -56,18 +56,20 @@ jobs:
           COMMIT_COUNT="${{ steps.fetch_activity.outputs.commit_count }}"
           DAYS="${{ github.event.inputs.days }}"
           
+          # Split REPORT into lines for proper formatting
           if [ "$PR_COUNT" -eq 0 ] && [ "$COMMIT_COUNT" -eq 0 ]; then
-            DETAILS="❌ No recent activity detected."
+            DETAILS_LINES='["❌ No recent activity detected."]'
           else
-            DETAILS="📋 Recent activity details:\n${REPORT}"
+            # Build a JSON array from REPORT lines
+            DETAILS_LINES=$(echo "$REPORT" | jq -R -s 'split("\n") | map(select(length > 0))')
           fi
           
-          # Use jq to construct post-format JSON
+          # Build the full content array with jq
           JSON_PAYLOAD=$(jq -n \
             --arg pr_count "$PR_COUNT" \
             --arg commit_count "$COMMIT_COUNT" \
             --arg days "$DAYS" \
-            --arg details "$DETAILS" \
+            --argjson details_lines "$DETAILS_LINES" \
             '{
               msg_type: "post",
               content: {
@@ -88,8 +90,9 @@ jobs:
                         {tag: "text", text: ""}
                       ],
                       [
-                        {tag: "text", text: $details}
-                      ]
+                        {tag: "text", text: "📋 Recent activity details:"}
+                      ],
+                      ($details_lines | map([{tag: "text", text: .}]))
                     ]
                   }
                 }
