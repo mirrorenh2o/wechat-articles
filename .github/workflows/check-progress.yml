@@ -56,6 +56,11 @@ jobs:
           COMMIT_COUNT="${{ steps.fetch_activity.outputs.commit_count }}"
           DAYS="${{ github.event.inputs.days }}"
           
+          # Debug: print raw REPORT
+          echo "=== RAW REPORT ==="
+          echo "$REPORT"
+          echo "=== END REPORT ==="
+          
           # Split REPORT into lines for proper formatting
           if [ "$PR_COUNT" -eq 0 ] && [ "$COMMIT_COUNT" -eq 0 ]; then
             DETAILS_LINES='["❌ No recent activity detected."]'
@@ -63,6 +68,11 @@ jobs:
             # Build a JSON array from REPORT lines
             DETAILS_LINES=$(echo "$REPORT" | jq -R -s 'split("\n") | map(select(length > 0))')
           fi
+          
+          # Debug: print DETAILS_LINES
+          echo "=== DETAILS_LINES ==="
+          echo "$DETAILS_LINES"
+          echo "=== END DETAILS_LINES ==="
           
           # Build the full content array with jq
           JSON_PAYLOAD=$(jq -n \
@@ -99,6 +109,12 @@ jobs:
               }
             }')
           
-          curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
+          # Debug: print JSON_PAYLOAD
+          echo "=== JSON_PAYLOAD ==="
+          echo "$JSON_PAYLOAD"
+          echo "=== END JSON_PAYLOAD ==="
+          
+          # Send to Feishu with verbose output
+          curl -v -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
             --data-binary "$JSON_PAYLOAD"
