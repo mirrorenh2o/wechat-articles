@@ -56,25 +56,18 @@ jobs:
           COMMIT_COUNT="${{ steps.fetch_activity.outputs.commit_count }}"
           DAYS="${{ github.event.inputs.days }}"
           
-          # Debug: print raw REPORT
-          echo "=== RAW REPORT ==="
-          echo "$REPORT"
-          echo "=== END REPORT ==="
-          
-          # Split REPORT into lines for proper formatting
+          # Build DETAILS_LINES
           if [ "$PR_COUNT" -eq 0 ] && [ "$COMMIT_COUNT" -eq 0 ]; then
             DETAILS_LINES='["❌ No recent activity detected."]'
           else
-            # Build a JSON array from REPORT lines
             DETAILS_LINES=$(echo "$REPORT" | jq -R -s 'split("\n") | map(select(length > 0))')
+            if [ "$(echo "$DETAILS_LINES" | jq 'length')" -eq 0 ]; then
+              DETAILS_LINES='["✅ No detailed entries found."]'
+            fi
           fi
           
-          # Debug: print DETAILS_LINES
-          echo "=== DETAILS_LINES ==="
-          echo "$DETAILS_LINES"
-          echo "=== END DETAILS_LINES ==="
-          
           # Build the full content array with jq
+          # Key fix: use + to concatenate the fixed paragraphs with the details lines
           JSON_PAYLOAD=$(jq -n \
             --arg pr_count "$PR_COUNT" \
             --arg commit_count "$COMMIT_COUNT" \
@@ -101,20 +94,17 @@ jobs:
                       ],
                       [
                         {tag: "text", text: "📋 Recent activity details:"}
-                      ],
-                      ($details_lines | map([{tag: "text", text: .}]))
-                    ]
+                      ]
+                    ] + ($details_lines | map([{tag: "text", text: .}]))
                   }
                 }
               }
             }')
           
-          # Debug: print JSON_PAYLOAD
-          echo "=== JSON_PAYLOAD ==="
-          echo "$JSON_PAYLOAD"
-          echo "=== END JSON_PAYLOAD ==="
+          # Debug: validate JSON
+          echo "=== VALIDATING JSON ==="
+          echo "$JSON_PAYLOAD" | jq . > /dev/null && echo "JSON is valid" || echo "JSON is invalid"
           
-          # Send to Feishu with verbose output
-          curl -v -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
+          curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
             --data-binary "$JSON_PAYLOAD"
