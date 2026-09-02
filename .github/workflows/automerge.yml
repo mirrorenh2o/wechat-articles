@@ -1,0 +1,32 @@
+name: Auto-merge on CI pass
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+  status: {}
+
+permissions:
+  contents: write        # 需要 write 才能调用 merge API
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    steps:
+      - id: automerge
+        name: automerge
+        uses: pascalgn/automerge-action@v0.16.4
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          MERGE_LABELS: ""              # 关键：空字符串 = 所有 PR 都自动合并，否则默认只合并带 automerge 标签的
+          MERGE_METHOD: "squash"        # 每期双周报合为一个干净 commit
+          MERGE_DELETE_BRANCH: "true"   # 合并后删除 feature 分支
+          MERGE_COMMIT_MESSAGE: "pull-request-title"
+          MERGE_RETRIES: "6"
+          MERGE_RETRY_SLEEP: "10000"
+          MERGE_ERROR_FAIL: "false"
+          UPDATE_METHOD: "rebase"
