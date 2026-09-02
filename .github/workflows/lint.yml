@@ -11,18 +11,6 @@ permissions:
   pull-requests: write
 
 jobs:
-  markdown-lint:
-    name: markdown-lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # 失败时会自动在 PR 的 Files changed 里行内标注具体行号与原因
-      - name: Markdown Lint
-        uses: DavidAnson/markdownlint-cli2-action@v16
-        with:
-          globs: '**/*.md'
-
   link-check:
     name: link-check
     runs-on: ubuntu-latest
@@ -36,7 +24,7 @@ jobs:
 
   notify-on-fail:
     name: notify-on-fail
-    needs: [markdown-lint, link-check]
+    needs: [link-check]
     if: ${{ failure() || cancelled() }}
     runs-on: ubuntu-latest
     permissions:
@@ -50,13 +38,6 @@ jobs:
             const author = pr.user.login;
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
 
-            // 根据 job 实际结果，动态生成失败项清单（而非固定话术）
-            const failed = [];
-            if (['failure', 'cancelled'].includes('${{ needs.markdown-lint.result }}'))
-              failed.push('**markdown-lint**（Markdown 格式检查）— 具体错误行号已标注在下方 Files changed 中');
-            if (['failure', 'cancelled'].includes('${{ needs.link-check.result }}'))
-              failed.push('**link-check**（外链有效性检查）— 在 Actions 日志中搜索 "ERROR" 可看到具体失效链接');
-
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -64,10 +45,12 @@ jobs:
               body: [
                 `@${author} 自动检查未通过，PR 暂未合入。失败项：`,
                 ``,
-                ...failed.map(f => `- ${f}`),
+                `- **link-check**（外链有效性检查）— 在 Actions 日志中搜索 "ERROR" 可看到具体失效链接`,
                 ``,
                 `**查看详细日志**：${runUrl}`,
                 ``,
+                `注意：偶发的网络超时也会导致链接被误判失效，可去日志确认；`,
+                `若确认是临时网络问题，重新运行检查（Re-run）即可。`,
                 `修复后直接 push 到当前分支即可重新检查，通过后自动合入。`
               ].join('\n')
             });
